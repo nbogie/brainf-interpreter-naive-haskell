@@ -1,11 +1,11 @@
 -- Incomplete, as it doesn't do input
 module Main where
+import Control.Monad.Trans.State
 import Data.Array
 import Data.Char (chr)
 import Data.Int (Int8)
 import System.Environment (getArgs)
-import Test.HUnit
-import MyStateMonad
+import Test.HUnit hiding (State)
 
 type Byte = Int8
 --------------------------------------------------------------------------------
@@ -104,10 +104,10 @@ display = map (chr . fromIntegral) . reverse
 
 run :: [Instruction] -> [Byte]
 run cmds = let w      = initWorld cmds
-               (w',_) = runState run' w
+               (_, w') = runState run' w
            in output w' 
 
-run' :: MyState World ()
+run' :: State World ()
 run' = do
   w <- get
   case nextInstruction w of
@@ -121,7 +121,7 @@ nextInstruction w
   where 
     lastInstrAddr = snd $ bounds $ program w
 
-applyAndAdvance :: Instruction -> MyState World ()
+applyAndAdvance :: Instruction -> State World ()
 applyAndAdvance instr =  apply instr >> modify pcChange
   where
     pcChange = if handlesPC instr then id else incPC
@@ -133,7 +133,7 @@ applyAndAdvance instr =  apply instr >> modify pcChange
 modMem :: (Zipper Byte -> Zipper Byte) -> World -> World
 modMem f w = w { memory = f $ memory w }
 
-apply ::  Instruction -> MyState World ()
+apply ::  Instruction -> State World ()
 apply IncP = modify $ modMem zFwd
 apply DecP = modify $ modMem zBack
 apply IncB = modify $ modMem zInc
