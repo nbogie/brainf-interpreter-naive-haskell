@@ -1,7 +1,7 @@
 -- Incomplete, as it doesn't do input
 module Main where
 import Data.Array
-import Data.Char (chr)
+import Data.Char (chr, ord)
 import Data.Int (Int8)
 import System.Environment (getArgs)
 import Test.HUnit
@@ -30,7 +30,6 @@ data World = World { wpc     :: Int
                    , pointer :: Int
                    , program :: Array Int Instruction
                    , memory  :: Zipper Byte
-                   , output  :: [Byte]
                    } deriving (Show)
 
 initWorld :: [Instruction] -> World
@@ -39,38 +38,29 @@ initWorld cmds =
         , memory  = mem
         , program = progAry
         , wpc     = 0
-        , output  = [] }
+        }
  where 
    progAry = toInstructionArray cmds
    mem = (repeat 0, 0, repeat 0) -- infinite in both directions
 
-data Mode = ShowProg | RunProg deriving (Eq)
 
 main ::  IO ()
 main = do
-  args <- getArgs
-  let mode = case args of
-              ["--show"] -> ShowProg
-              []         -> RunProg
-              _other     -> error "usage: prog [--show]"
+  [fname] <- getArgs
   _counts <- tests
-  let f = case mode of
-            ShowProg -> parseAndShow
-            RunProg  -> parseRunAndDisplay
-  interact f
+  inp <- readFile fname
+  parseAndRun inp
 
-parseRunAndDisplay ::  String -> String
-parseRunAndDisplay = display . run . parse
-
-parseAndShow ::  String -> String
-parseAndShow = unlines . map show . zip [(0::Int)..] . parse
+parseAndRun ::  String -> IO ()
+parseAndRun str = 
+  run (parse str) >> return ()
 
 data Instruction = IncP
                  | DecP
                  | IncB
                  | DecB
                  | OutB
-                 -- | InpB
+                 | InpB
                  | JmpF
                  | JmpB
                  deriving (Show, Enum, Eq, Ord)
@@ -90,7 +80,7 @@ parseOne '<' = DecP
 parseOne '+' = IncB
 parseOne '-' = DecB
 parseOne '.' = OutB
--- parseOne ',' = InpB -- TODO: implement InputByte instruction
+parseOne ',' = InpB
 parseOne '[' = JmpF
 parseOne ']' = JmpB
 parseOne other = error $ "illegal character: " ++ [other]
@@ -101,16 +91,15 @@ legalInstructionChar = flip elem "><+-.,[]"
 display :: [Byte] -> String
 display = map (chr . fromIntegral) . reverse
 
-run :: [Instruction] -> [Byte]
-run cmds = let w  = initWorld cmds
-               w' = run' w
-           in output w' 
+run :: [Instruction] -> IO World
+run cmds = run' (initWorld cmds) 
 
-run' :: World -> World
+run' :: World -> IO World
 run' w = case nextInstruction w of
-  Nothing    -> w
-  Just instr -> run' next
-    where next = applyAndAdvance instr w
+  Nothing    -> return w
+  Just instr -> do
+    next <- applyAndAdvance instr w
+    run' next
 
 nextInstruction :: World -> Maybe Instruction
 nextInstruction w 
@@ -119,29 +108,33 @@ nextInstruction w
   where 
     lastInstrAddr = snd $ bounds $ program w
 
-applyAndAdvance :: Instruction -> World -> World
-applyAndAdvance instr w = pcChange $ apply instr w
-  where
-    pcChange = if handlesPC instr then id else incPC
-    -- does the instruction take care of PC for itself or should it be advanced?
-    handlesPC JmpF = True
-    handlesPC JmpB = True
-    handlesPC _ = False
+applyAndAdvance :: Instruction -> World -> IO World
+applyAndAdvance instr w =
+  fmap pcChange $ apply instr w
+    where
+      pcChange = if handlesPC instr then id else incPC
+      -- does the instruction take care of PC for itself 
+      -- or should it be advanced?
+      handlesPC JmpF = True
+      handlesPC JmpB = True
+      handlesPC _    = False
+
 
 modMem :: (Zipper Byte -> Zipper Byte) -> World -> World
 modMem f w = w { memory = f $ memory w }
 
-apply ::  Instruction -> World -> World
-apply IncP w = modMem zFwd w
-apply DecP w = modMem zBack w
-apply IncB w = modMem zInc w
-apply DecB w = modMem zDec w
-apply OutB w = w { output = newVal }
-  where newVal = byteAtPointer w : output w 
--- TODO: implement InputByte instruction
--- apply InpB _w = error "Not implemented Input Byte"
-apply JmpF w = if byteAtPointer w == 0 then jumpForward w else incPC w
-apply JmpB w = if byteAtPointer w /= 0 then jumpBackward w else incPC w
+apply ::  Instruction -> World -> IO World
+apply IncP w = return $ modMem zFwd w
+apply DecP w = return $ modMem zBack w
+apply IncB w = return $ modMem zInc w
+apply DecB w = return $ modMem zDec w
+apply OutB w = putChar (chr $ fromIntegral $ byteAtPointer w) >> return w
+apply InpB w = do
+  c <- getChar
+  let newByte = fromIntegral $ ord c
+  return $ modMem (zPut newByte) w
+apply JmpF w = return $ if byteAtPointer w == 0 then jumpForward w else incPC w
+apply JmpB w = return $ if byteAtPointer w /= 0 then jumpBackward w else incPC w
 
 data JumpDir = Back | Forward deriving (Eq)
 
@@ -184,13 +177,14 @@ byteAtPointer ::  World -> Byte
 byteAtPointer w = zGet $ memory w 
 
 tests ::  IO Counts
-tests = runTestTT $ TestList [ jfTests, rolloverTests, runnerTests]
+tests = runTestTT $ TestList [ jfTests, rolloverTests] {- , runnerTests]
 runnerTests :: Test
 runnerTests = TestList [ "no inp, no output" ~: []  ~=? (run $ parse "") 
                        , "single instr"      ~: [0] ~=? (run $ parse ".")
                        , "single instr"      ~: "Hello World!\n" ~=? (display $ run $ parse 
                       "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.")
                        ]
+-}
 
 rolloverTests :: Test
 rolloverTests = TestList  [ 127  ~=?  (subtract 1)  (-128) 

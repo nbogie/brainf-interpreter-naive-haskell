@@ -17,7 +17,7 @@ mkdir -p $outdir
 
 input_file=samples/99botles.bf 
 
-< $input_file ./Main +RTS -s 2> $outdir/s_report.txt
+./Main $input_file +RTS -s 2> $outdir/s_report.txt
 
 #for flag in hc hr hm hd hy hb; do
 for flag in hc hr hd hy; do  #removed hb, hm (biography, module)
@@ -28,7 +28,7 @@ for flag in hc hr hd hy; do  #removed hb, hm (biography, module)
   rm -f Main.prof
   rm -f Main.hp
 
-  < $input_file ./Main +RTS -$flag -p
+  ./Main $input_file +RTS -$flag -p
 
   set +e
   hp2ps -c -g -e8in Main.hp #only not used in p
