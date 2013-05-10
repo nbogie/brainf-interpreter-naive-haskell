@@ -5,6 +5,7 @@ import Data.Char (chr)
 import Data.Int (Int8)
 import System.Environment (getArgs)
 import Test.HUnit
+import MyStateMonad
 
 type Byte = Int8
 --------------------------------------------------------------------------------
@@ -102,15 +103,16 @@ display :: [Byte] -> String
 display = map (chr . fromIntegral) . reverse
 
 run :: [Instruction] -> [Byte]
-run cmds = let w  = initWorld cmds
-               w' = run' w
+run cmds = let w      = initWorld cmds
+               (w',_) = runState run' w
            in output w' 
 
-run' :: World -> World
-run' w = case nextInstruction w of
-  Nothing    -> w
-  Just instr -> run' next
-    where next = applyAndAdvance instr w
+run' :: MyState World ()
+run' = do
+  w <- get
+  case nextInstruction w of
+    Nothing    -> return ()
+    Just instr -> applyAndAdvance instr >> run'
 
 nextInstruction :: World -> Maybe Instruction
 nextInstruction w 
@@ -119,8 +121,8 @@ nextInstruction w
   where 
     lastInstrAddr = snd $ bounds $ program w
 
-applyAndAdvance :: Instruction -> World -> World
-applyAndAdvance instr w = pcChange $ apply instr w
+applyAndAdvance :: Instruction -> MyState World ()
+applyAndAdvance instr =  apply instr >> modify pcChange
   where
     pcChange = if handlesPC instr then id else incPC
     -- does the instruction take care of PC for itself or should it be advanced?
@@ -131,17 +133,29 @@ applyAndAdvance instr w = pcChange $ apply instr w
 modMem :: (Zipper Byte -> Zipper Byte) -> World -> World
 modMem f w = w { memory = f $ memory w }
 
-apply ::  Instruction -> World -> World
-apply IncP w = modMem zFwd w
-apply DecP w = modMem zBack w
-apply IncB w = modMem zInc w
-apply DecB w = modMem zDec w
-apply OutB w = w { output = newVal }
-  where newVal = byteAtPointer w : output w 
+apply ::  Instruction -> MyState World ()
+apply IncP = modify $ modMem zFwd
+apply DecP = modify $ modMem zBack
+apply IncB = modify $ modMem zInc
+apply DecB = modify $ modMem zDec
+apply OutB = do
+  newVal <- do
+    w <- get
+    return $ byteAtPointer w : output w 
+  modify (\s -> s { output = newVal })
 -- TODO: implement InputByte instruction
 -- apply InpB _w = error "Not implemented Input Byte"
-apply JmpF w = if byteAtPointer w == 0 then jumpForward w else incPC w
-apply JmpB w = if byteAtPointer w /= 0 then jumpBackward w else incPC w
+apply JmpF = do
+  w <- get
+  if byteAtPointer w == 0 
+      then modify $ jumpForward 
+      else modify $ incPC
+
+apply JmpB = do
+    w <- get
+    if byteAtPointer w /= 0 
+      then modify $ jumpBackward 
+      else modify $ incPC
 
 data JumpDir = Back | Forward deriving (Eq)
 
