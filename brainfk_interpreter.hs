@@ -129,6 +129,7 @@ ifM action a b = do
   res <- action
   if res then a else b
 
+(>>=<) ::  (Functor m) => m a -> (a -> b) -> m b
 (>>=<) = flip fmap
 -- useful for stuff like:  gets byteAtPointer >>=< (==0)
 
