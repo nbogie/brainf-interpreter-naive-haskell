@@ -50,16 +50,9 @@ data Mode = ShowProg | RunProg deriving (Eq)
 
 main ::  IO ()
 main = do
-  args <- getArgs
-  let mode = case args of
-              ["--show"] -> ShowProg
-              []         -> RunProg
-              _other     -> error "usage: prog [--show]"
+  [fname] <- getArgs
   _counts <- tests
-  let f = case mode of
-            ShowProg -> parseAndShow
-            RunProg  -> parseRunAndDisplay
-  interact f
+  readFile fname >>= putStrLn . parseRunAndDisplay
 
 parseRunAndDisplay ::  String -> String
 parseRunAndDisplay = display . run . parse
