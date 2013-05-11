@@ -1,7 +1,8 @@
 -- Incomplete, as it doesn't do input
 module Main where
-import Control.Monad.Trans.State
-import Data.Array
+import Control.Monad (liftM2)
+import Control.Monad.Trans.State(modify,runState,State,get,gets)
+import Data.Array(array,(!),Array,bounds)
 import Data.Char (chr)
 import Data.Int (Int8)
 import System.Environment (getArgs)
@@ -130,8 +131,17 @@ applyAndAdvance instr =  apply instr >> modify pcChange
     handlesPC JmpB = True
     handlesPC _ = False
 
+ifM :: (Monad m) => m Bool -> m a -> m a -> m a
+ifM action a b = do
+  res <- action
+  if res then a else b
+
+(>>=<) = flip fmap
+-- useful for stuff like:  gets byteAtPointer >>=< (==0)
+
 modMem :: (Zipper Byte -> Zipper Byte) -> World -> World
 modMem f w = w { memory = f $ memory w }
+
 
 apply ::  Instruction -> State World ()
 apply IncP = modify $ modMem zFwd
@@ -139,23 +149,18 @@ apply DecP = modify $ modMem zBack
 apply IncB = modify $ modMem zInc
 apply DecB = modify $ modMem zDec
 apply OutB = do
-  newVal <- do
-    w <- get
-    return $ byteAtPointer w : output w 
+  newVal <- liftM2 (:) (gets byteAtPointer) (gets output)
   modify (\s -> s { output = newVal })
 -- TODO: implement InputByte instruction
 -- apply InpB _w = error "Not implemented Input Byte"
-apply JmpF = do
-  w <- get
-  if byteAtPointer w == 0 
-      then modify $ jumpForward 
-      else modify $ incPC
-
-apply JmpB = do
-    w <- get
-    if byteAtPointer w /= 0 
-      then modify $ jumpBackward 
-      else modify $ incPC
+apply JmpF = 
+  ifM (gets byteAtPointer >>=< (==0) )
+      (modify jumpForward)
+      (modify incPC)
+apply JmpB = 
+    ifM (gets byteAtPointer >>=< (/= 0))
+      (modify jumpBackward)
+      (modify incPC)
 
 data JumpDir = Back | Forward deriving (Eq)
 
