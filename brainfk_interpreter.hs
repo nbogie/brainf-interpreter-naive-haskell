@@ -1,7 +1,7 @@
 -- Incomplete, as it doesn't do input
 module Main where
 import Control.Monad (liftM2)
-import Control.Monad.Trans.State(modify,runState,State,get,gets)
+import Control.Monad.Trans.State(modify,execStateT,StateT,get,gets)
 import Data.Array(array,(!),Array,bounds)
 import Data.Char (chr)
 import Data.Int (Int8)
@@ -52,10 +52,10 @@ main ::  IO ()
 main = do
   [fname] <- getArgs
   _counts <- tests
-  readFile fname >>= putStrLn . parseRunAndDisplay
+  readFile fname >>= parseRunAndDisplay >>= putStrLn
 
-parseRunAndDisplay ::  String -> String
-parseRunAndDisplay = display . run . parse
+parseRunAndDisplay ::  String -> IO String
+parseRunAndDisplay str = fmap display $ run (parse str)
 
 parseAndShow ::  String -> String
 parseAndShow = unlines . map show . zip [(0::Int)..] . parse
@@ -96,12 +96,13 @@ legalInstructionChar = flip elem "><+-.,[]"
 display :: [Byte] -> String
 display = map (chr . fromIntegral) . reverse
 
-run :: [Instruction] -> [Byte]
-run cmds = let w      = initWorld cmds
-               (_, w') = runState run' w
-           in output w' 
+run :: [Instruction] -> IO [Byte]
+run cmds = do
+  let w  = initWorld cmds
+  w' <- execStateT run' w
+  return $ output w' 
 
-run' :: State World ()
+run' :: StateT World IO ()
 run' = do
   w <- get
   case nextInstruction w of
@@ -115,7 +116,7 @@ nextInstruction w
   where 
     lastInstrAddr = snd $ bounds $ program w
 
-applyAndAdvance :: Instruction -> State World ()
+applyAndAdvance :: Instruction -> StateT World IO ()
 applyAndAdvance instr =  apply instr >> modify pcChange
   where
     pcChange = if handlesPC instr then id else incPC
@@ -137,7 +138,7 @@ modMem :: (Zipper Byte -> Zipper Byte) -> World -> World
 modMem f w = w { memory = f $ memory w }
 
 
-apply ::  Instruction -> State World ()
+apply ::  Instruction -> StateT World IO ()
 apply IncP = modify $ modMem zFwd
 apply DecP = modify $ modMem zBack
 apply IncB = modify $ modMem zInc
@@ -199,11 +200,16 @@ byteAtPointer w = zGet $ memory w
 tests ::  IO Counts
 tests = runTestTT $ TestList [ jfTests, rolloverTests, runnerTests]
 runnerTests :: Test
-runnerTests = TestList [ "no inp, no output" ~: []  ~=? (run $ parse "") 
-                       , "single instr"      ~: [0] ~=? (run $ parse ".")
-                       , "single instr"      ~: "Hello World!\n" ~=? (display $ run $ parse 
-                      "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.")
+runnerTests = TestList $ map runAndTest
+  [ ("no in or out", "",   "")
+  , ("single instr", "\0", ".")
+  , ("single instr", "Hello World!\n", 
+     "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.")
                        ]
+runAndTest :: (String, String, String) -> Test
+runAndTest (msg, expd, inp) = TestCase $ do
+  outp <- fmap display (run $ parse inp)
+  assertEqual msg expd outp
 
 rolloverTests :: Test
 rolloverTests = TestList  [ 127  ~=?  (subtract 1)  (-128::Int8) 
