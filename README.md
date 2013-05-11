@@ -1,8 +1,5 @@
 A Haskell Beginner's attempt at a Brainfk interpreter.  Just a learning exercise.
 
-Limitations:
-Currently doesn't do input.
-
 Notes:
 
 On rollover, and memory cell size:

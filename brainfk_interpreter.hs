@@ -1,9 +1,8 @@
--- Incomplete, as it doesn't do input
 module Main where
-import Control.Monad (liftM2)
 import Control.Monad.Trans.State(modify,execStateT,StateT,get,gets)
+import Control.Monad.Trans(lift)
 import Data.Array(array,(!),Array,bounds)
-import Data.Char (chr)
+import Data.Char (chr, ord)
 import Data.Int (Int8)
 import System.Environment (getArgs)
 import Test.HUnit hiding (State)
@@ -65,7 +64,7 @@ data Instruction = IncP
                  | IncB
                  | DecB
                  | OutB
-                 -- | InpB
+                 | InpB
                  | JmpF
                  | JmpB
                  deriving (Show, Enum, Eq, Ord)
@@ -85,7 +84,7 @@ parseOne '<' = DecP
 parseOne '+' = IncB
 parseOne '-' = DecB
 parseOne '.' = OutB
--- parseOne ',' = InpB -- TODO: implement InputByte instruction
+parseOne ',' = InpB
 parseOne '[' = JmpF
 parseOne ']' = JmpB
 parseOne other = error $ "illegal character: " ++ [other]
@@ -137,6 +136,12 @@ ifM action a b = do
 modMem :: (Zipper Byte -> Zipper Byte) -> World -> World
 modMem f w = w { memory = f $ memory w }
 
+byteToChar ::  Byte -> Char
+byteToChar = chr . fromIntegral
+
+charToByte :: Char -> Maybe Byte
+charToByte c = if code <= 255 then Just $ fromIntegral code else Nothing
+  where code = ord c
 
 apply ::  Instruction -> StateT World IO ()
 apply IncP = modify $ modMem zFwd
@@ -144,10 +149,19 @@ apply DecP = modify $ modMem zBack
 apply IncB = modify $ modMem zInc
 apply DecB = modify $ modMem zDec
 apply OutB = do
-  newVal <- liftM2 (:) (gets byteAtPointer) (gets output)
+  b <- gets byteAtPointer
+  lift $ putChar $ byteToChar b
+  
+  -- Just for testing, useful if we still keep our output
+  newVal <- fmap (b:) (gets output)
   modify (\s -> s { output = newVal })
--- TODO: implement InputByte instruction
--- apply InpB _w = error "Not implemented Input Byte"
+
+apply InpB = do
+  c <- lift getChar
+  case charToByte c of
+    Just b -> modify $ modMem (zPut b)
+    Nothing -> error $ "Incompatible character read: "++ [c] 
+
 apply JmpF = 
   ifM (gets byteAtPointer >>=< (==0) )
       (modify jumpForward)
