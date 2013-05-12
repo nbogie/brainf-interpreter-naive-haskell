@@ -1,4 +1,20 @@
-This program seems to rely upon rollover when updating memory values (at neg 128 and 127)
+99 Bottles of Beer in Urban Mueller's BrainF*** (The actual
+name is impolite)
+
+by Ben Olmstead
+
+ANSI C interpreter available on the internet; due to
+constraints in comments the address below needs to have the
+stuff in parenthesis replaced with the appropriate symbol:
+
+http://www(dot)cats(dash)eye(dot)com/cet/soft/lang/bf/
+
+Believe it or not this language is indeed Turing complete!
+Combines the speed of BASIC with the ease of INTERCAL and
+the readability of an IOCCC entry!
+
+Note that this program seems to rely upon rollover when 
+updating memory values (below neg 128)
 
 >+++++++++[<+++++++++++>-]<[>[-]>[-]<<[>+>+<<-]>>[<<+>>-]>>>
 [-]<<<+++++++++<[>>>+<<[>+>[-]<<-]>[<+>-]>[<<++++++++++>>>+<
