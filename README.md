@@ -1,4 +1,4 @@
-A Haskell beginner's attempt at a Brainfuck interpreter.  Undertaken as a learning exercise.  
+A Haskell beginner's attempt at a Brainf**k interpreter.  Undertaken as a learning exercise.  
 
 Later versions incorporate ideas from other haskell versions, and Tekmo's notes on reddit: http://www.reddit.com/r/haskell/comments/woqhb/fhck_10_a_brainfuck_interpreter_written_in_haskell
 
